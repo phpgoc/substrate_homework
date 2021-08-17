@@ -76,10 +76,10 @@ pub mod pallet {
         #[pallet::weight(0)]
         pub fn revoke_claim(origin: OriginFor<T>, claim: Vec<u8>) -> DispatchResultWithPostInfo {
             let sender = ensure_signed(origin)?;
-            ensure!(
-                claim.len() <= T::StringLimit::get() as usize,
-                Error::<T>::BadMetadata
-            );
+//             ensure!(
+//                 claim.len() <= T::StringLimit::get() as usize,
+//                 Error::<T>::BadMetadata
+//             );
             let (owner, _) = Proofs::<T>::get(&claim).ok_or(Error::<T>::ClaimNotExist)?;
             ensure!(owner == sender, Error::<T>::NotClaimOwner);
             Proofs::<T>::remove(&claim);
@@ -94,10 +94,10 @@ pub mod pallet {
             to: T::AccountId,
         ) -> DispatchResultWithPostInfo {
             let sender = ensure_signed(origin)?;
-            ensure!(
-                claim.len() <= T::StringLimit::get() as usize,
-                Error::<T>::BadMetadata
-            );
+//             ensure!(
+//                 claim.len() <= T::StringLimit::get() as usize,
+//                 Error::<T>::BadMetadata
+//             );
             let (owner, _) = Proofs::<T>::get(&claim).ok_or(Error::<T>::ClaimNotExist)?;
             ensure!(owner == sender, Error::<T>::NotClaimOwner);
 
