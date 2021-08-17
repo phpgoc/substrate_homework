@@ -4,12 +4,13 @@
 pub use pallet::*;
 
 #[cfg(test)]
-mod tests;
-#[cfg(test)]
 mod mock;
+#[cfg(test)]
+mod tests;
 
 #[frame_support::pallet]
 pub mod pallet {
+    use frame_support::traits::Get;
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
     use frame_system::pallet_prelude::*;
     use sp_std::vec::Vec;
@@ -19,6 +20,7 @@ pub mod pallet {
     pub trait Config: frame_system::Config {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+        type StringLimit: Get<u32>;
     }
 
     #[pallet::pallet]
@@ -31,19 +33,20 @@ pub mod pallet {
         StorageMap<_, Blake2_128Concat, Vec<u8>, (T::AccountId, T::BlockNumber)>;
 
     #[pallet::event]
-	#[pallet::metadata(T::AccountId = "AccountId")]
-	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+    #[pallet::metadata(T::AccountId = "AccountId")]
+    #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-		ClaimCreated(T::AccountId,Vec<u8>),
-		ClaimRevoked(T::AccountId,Vec<u8>),
-        ClaimMoved(T::AccountId,Vec<u8>,T::AccountId)
-	}
+        ClaimCreated(T::AccountId, Vec<u8>),
+        ClaimRevoked(T::AccountId, Vec<u8>),
+        ClaimMoved(T::AccountId, Vec<u8>, T::AccountId),
+    }
 
     #[pallet::error]
     pub enum Error<T> {
-		ProofAlreadyExist,
-		ClaimNotExist,
-		NotClaimOwner
+        ProofAlreadyExist,
+        ClaimNotExist,
+        NotClaimOwner,
+        BadMetadata,
     }
 
     #[pallet::hooks]
@@ -55,6 +58,10 @@ pub mod pallet {
         pub fn create_claim(origin: OriginFor<T>, claim: Vec<u8>) -> DispatchResultWithPostInfo {
             let sender = ensure_signed(origin)?;
             ensure!(
+                claim.len() <= T::StringLimit::get() as usize,
+                Error::<T>::BadMetadata
+            );
+            ensure!(
                 !Proofs::<T>::contains_key(&claim),
                 Error::<T>::ProofAlreadyExist
             );
@@ -62,31 +69,43 @@ pub mod pallet {
                 &claim,
                 (sender.clone(), frame_system::Pallet::<T>::block_number()),
             );
-            Self::deposit_event(Event::ClaimCreated(sender,claim));
-			Ok(().into())
+            Self::deposit_event(Event::ClaimCreated(sender, claim));
+            Ok(().into())
         }
 
-		#[pallet::weight(0)]
-		pub fn revoke_claim(origin: OriginFor<T>,claim:Vec<u8>) ->DispatchResultWithPostInfo{
-			let sender = ensure_signed(origin)?;
-			let (owner,_) = Proofs::<T>::get(&claim).ok_or(Error::<T>::ClaimNotExist)?;
-			ensure!(owner == sender,Error::<T>::NotClaimOwner);
-			Proofs::<T>::remove(&claim);
-			Self::deposit_event(Event::ClaimRevoked(sender,claim));
+        #[pallet::weight(0)]
+        pub fn revoke_claim(origin: OriginFor<T>, claim: Vec<u8>) -> DispatchResultWithPostInfo {
+            let sender = ensure_signed(origin)?;
+            ensure!(
+                claim.len() <= T::StringLimit::get() as usize,
+                Error::<T>::BadMetadata
+            );
+            let (owner, _) = Proofs::<T>::get(&claim).ok_or(Error::<T>::ClaimNotExist)?;
+            ensure!(owner == sender, Error::<T>::NotClaimOwner);
+            Proofs::<T>::remove(&claim);
+            Self::deposit_event(Event::ClaimRevoked(sender, claim));
             Ok(().into())
-		}
+        }
 
         #[pallet::weight(0)]
-        pub fn transfer_claim(origin: OriginFor<T>,claim:Vec<u8>,to:T::AccountId) -> DispatchResultWithPostInfo{
+        pub fn transfer_claim(
+            origin: OriginFor<T>,
+            claim: Vec<u8>,
+            to: T::AccountId,
+        ) -> DispatchResultWithPostInfo {
             let sender = ensure_signed(origin)?;
-            let (owner,_) = Proofs::<T>::get(&claim).ok_or(Error::<T>::ClaimNotExist)?;
-            ensure!(owner == sender,Error::<T>::NotClaimOwner);
+            ensure!(
+                claim.len() <= T::StringLimit::get() as usize,
+                Error::<T>::BadMetadata
+            );
+            let (owner, _) = Proofs::<T>::get(&claim).ok_or(Error::<T>::ClaimNotExist)?;
+            ensure!(owner == sender, Error::<T>::NotClaimOwner);
 
             Proofs::<T>::insert(
                 &claim,
                 (to.clone(), frame_system::Pallet::<T>::block_number()),
             );
-            Self::deposit_event(Event::ClaimMoved(sender,claim,to));
+            Self::deposit_event(Event::ClaimMoved(sender, claim, to));
             Ok(().into())
         }
     }
