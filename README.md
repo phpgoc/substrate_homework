@@ -1,1 +1,3 @@
-[test link](./.gitignore)
+<p>
+  [test link](./.gitignore)
+</p>
