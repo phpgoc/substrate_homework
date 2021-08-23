@@ -1,1 +1,1 @@
-[test link](./gitignore)
+[test link](./.gitignore)
