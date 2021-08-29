@@ -5,7 +5,7 @@ pub use pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
-    use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*,traits::Randomness};
+    use frame_support::{dispatch::DispatchResult, pallet_prelude::*,traits::Randomness};
     use codec::{Encode,Decode};
     use frame_system::pallet_prelude::*;
     use sp_io::hashing::blake2_128;
@@ -30,7 +30,7 @@ pub mod pallet {
     #[pallet::config]
     pub trait Config: frame_system::Config {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-        type Randomness : Randomness<Self::Hash>;
+        type Randomness : Randomness<Self::Hash,Self::BlockNumber>;
     }
 
     #[pallet::pallet]
@@ -60,7 +60,7 @@ pub mod pallet {
     #[pallet::call]
     impl<T: Config> Pallet<T> {
         #[pallet::weight(0)]
-        pub fn create(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
+        pub fn create(origin: OriginFor<T>) -> DispatchResult {
             let who = ensure_signed(origin)?;
             let kitty_id = Self::new_ketty_id()?;
             let dna = Self::random_value(&who);
@@ -72,7 +72,7 @@ pub mod pallet {
         }
 
         #[pallet::weight(0)]
-        pub fn transfer(origin: OriginFor<T>, new_owner: T::AccountId, kitty_id: KittyIndex) -> DispatchResultWithPostInfo {
+        pub fn transfer(origin: OriginFor<T>, new_owner: T::AccountId, kitty_id: KittyIndex) -> DispatchResult {
             let who = ensure_signed(origin)?;
             ensure!(Some(who.clone()) == Owner::<T>::get(kitty_id),Error::<T>::NotOwner);
             Owner::<T>::insert(kitty_id, Some(new_owner.clone()));
@@ -81,7 +81,7 @@ pub mod pallet {
         }
 
         #[pallet::weight(0)]
-        pub fn bread(origin: OriginFor<T>,kitty_id1: KittyIndex,kitty_id2: KittyIndex) ->DispatchResultWithPostInfo{
+        pub fn bread(origin: OriginFor<T>,kitty_id1: KittyIndex,kitty_id2: KittyIndex) ->DispatchResult{
             let who = ensure_signed(origin)?;
             ensure!(kitty_id1 != kitty_id2,Error::<T>::SameParentIndex);
             let kitty1 = Self::kitties(kitty_id1).ok_or(Error::<T>::InvalidKittyIndex)?;
@@ -106,10 +106,10 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        fn random_value(sender: &T::AccountId) -> [u8;16]{
+        fn random_value(sender: &T::AccountId) -> [u8; 16] {
             let payload = (
                 T::Randomness::random_seed(),
-                sender,
+                &sender,
                 <frame_system::Pallet<T>>::extrinsic_index(),
             );
             payload.using_encoded(blake2_128)
