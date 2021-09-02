@@ -1,15 +1,17 @@
 use crate as pallet_kitties;
-use sp_core::H256;
 use frame_support::parameter_types;
-use sp_runtime::{
-	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
-};
 use frame_system as system;
+use sp_core::H256;
+use sp_runtime::{
+	testing::Header,
+	traits::{BlakeTwo256, IdentityLookup},
+};
+
+
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
-type Balance = u128;
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
 	pub enum Test where
@@ -19,15 +21,16 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		KittiesModule: pallet_kitties::{Pallet, Call, Storage, Event<T>},
-		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
-
 	}
 );
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 	pub const SS58Prefix: u8 = 42;
+	pub const ExistentialDeposit: u64 = 1;
+	pub const ReserveOfNewCreate: u32 = 1_000_000_000;
 }
 
 impl system::Config for Test {
@@ -48,7 +51,7 @@ impl system::Config for Test {
 	type BlockHashCount = BlockHashCount;
 	type Version = ();
 	type PalletInfo = PalletInfo;
-	type AccountData = ();
+	type AccountData = pallet_balances::AccountData<u128>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
@@ -57,7 +60,7 @@ impl system::Config for Test {
 }
 
 parameter_types! {
-	pub const MoneyForCreateKitty: u128 = 1_000;
+    pub const MoneyForCreateKitty: u128 = 10_000;
 }
 impl pallet_kitties::Config for Test {
 	type Event = Event;
@@ -67,7 +70,33 @@ impl pallet_kitties::Config for Test {
 	type Currency = Balances;
 }
 
+impl pallet_balances::Config for Test {
+	type Balance = u128;
+	type Event = Event;
+	type DustRemoval = ();
+	type ExistentialDeposit = ExistentialDeposit;
+	type AccountStore = System;
+	type MaxLocks = ();
+	type MaxReserves = ();
+	type ReserveIdentifier = [u8; 8];
+	type WeightInfo = ();
+}
+
+impl pallet_randomness_collective_flip::Config for Test {}
+
+
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
+	let mut storage = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+
+	// Genesis funds
+	pallet_balances::GenesisConfig::<Test> {
+		balances: vec![(1, 10_000_000), (2, 100_000_000), (3, 1_000)],
+	}
+		.assimilate_storage(&mut storage)
+		.unwrap();
+
+	let mut ext = sp_io::TestExternalities::new(storage);
+	ext.execute_with(|| System::set_block_number(10));
+	ext
 }
