@@ -26,6 +26,8 @@ mod erc20 {
         spender: AccountId,
         value: Balance,
     }
+    #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum Error {
         InsufficientBalance,
         InsufficientApproval,
@@ -52,8 +54,60 @@ mod erc20 {
         }
 
         #[ink(message)]
-        pub fn total_supply(&self) ->Balance{
+        pub fn total_supply(&self) -> Balance {
             *self.total_supply
+        }
+
+        #[ink(message)]
+        pub fn balance_of(&self, who: AccountId) -> Balance {
+            self.balances.get(&who).copied().unwrap_or(0)
+        }
+        #[ink(message)]
+        pub fn allowance(&self, owner: AccountId, spender: AccountId) -> Balance {
+            self.allowances.get(&(owner, spender)).copied().unwrap_or(0)
+        }
+        #[ink(message)]
+        pub fn transefer(&mut self, to: AccountId, value: Balance) -> Result<()> {
+            let from = self.env().caller();
+            self.inner_transfer(from, to, value)
+        }
+        #[ink(message)]
+        pub fn approve(&mut self, to: AccountId, value: Balance) -> Result<()> {
+            let owner = self.env().caller();
+            self.allowances.insert((owner, to), value);
+            self.env().emit_event(Approval {
+                owner,
+                spender: to,
+                value,
+            });
+            Ok(())
+        }
+        #[ink(message)]
+        pub fn transfer_from(&mut self, from: AccountId, value: Balance) -> Result<()> {
+            let caller = self.env().caller();
+            let allowance = self.allowance(from, caller);
+            if allowance < value {
+                return Err(Error::InsufficientApproval);
+            }
+            self.inner_transfer(from, caller, value);
+            self.allowances.insert((from, caller), allowance - value);
+            Ok(())
+        }
+
+        fn inner_transfer(&mut self, from: AccountId, to: AccountId, value: Balance) -> Result<()> {
+            let from_balance = self.balance_of(from);
+            if from_balance < value {
+                return Err(Error::InsufficientBalance);
+            }
+            self.balances.insert(from, from_balance - value);
+            let to_balance = self.balance_of(to);
+            self.balances.insert(to, to_balance + value);
+            self.env().emit_event(Transfer {
+                from: Some(from),
+                to: Some(to),
+                value,
+            });
+            Ok(())
         }
     }
 }
